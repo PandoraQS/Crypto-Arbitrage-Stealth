@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  etl-engine:
+    build: ./backend
+    restart: always
+    environment:
+      - REDIS_HOST=redis-cache
+    depends_on:
+      - redis-cache
+
+  redis-cache:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  dashboard:
+    build: ./frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - REDIS_HOST=redis-cache
+    depends_on:
+      - redis-cache
