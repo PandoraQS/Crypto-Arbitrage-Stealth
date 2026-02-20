@@ -148,26 +148,34 @@ while True:
         col_mid1, col_mid2 = st.columns([2, 1])
         with col_mid1:
             st.subheader("Market Liquidity Flow")
-            selection = alt.selection_point(fields=['symbol'], bind='legend')
-            liq_chart = alt.Chart(st.session_state.master_history).mark_line(point=True).encode(
-                x=alt.X('time:T', axis=alt.Axis(title='Time', format='%H:%M:%S')),
-                y=alt.Y('liquidity:Q', title='Total Depth (Units)', scale=alt.Scale(zero=False)),
-                color='symbol:N',
-                opacity=alt.condition(selection, alt.value(1.0), alt.value(0.1))
-            ).add_params(selection).properties(height=300).interactive()
-            st.altair_chart(liq_chart, width='stretch')
+            history_valid = st.session_state.master_history.dropna(subset=['time', 'liquidity'])
             
+            if len(history_valid) > 2: 
+                selection = alt.selection_point(fields=['symbol'], bind='legend')
+                liq_chart = alt.Chart(history_valid).mark_line(point=True).encode(
+                    x=alt.X('time:T', axis=alt.Axis(title='Time', format='%H:%M:%S')),
+                    y=alt.Y('liquidity:Q', title='Total Depth (Units)', scale=alt.Scale(zero=False)),
+                    color='symbol:N',
+                    opacity=alt.condition(selection, alt.value(1.0), alt.value(0.1))
+                ).add_params(selection).properties(height=300)
+                st.altair_chart(liq_chart, width='stretch')
+            else:
+                st.info("Collecting more data points for liquidity flow...")
+
         with col_mid2:
             st.subheader("Order Book Imbalance")
             if not st.session_state.master_history.empty:
-                latest_imb = st.session_state.master_history.groupby('symbol').last().reset_index()
-                imb_chart = alt.Chart(latest_imb).mark_bar().encode(
-                    x=alt.X('imbalance:Q', scale=alt.Scale(domain=[0, 1]), title="Bids <--- Pressure ---> Asks"),
-                    y='symbol:N',
-                    color=alt.condition(alt.datum.imbalance > 0.5, alt.value("#2ecc71"), alt.value("#e74c3c"))
-                ).properties(height=250)
-                st.altair_chart(imb_chart, width='stretch')
-
+                latest_imb = st.session_state.master_history.dropna(subset=['imbalance']).groupby('symbol').last().reset_index()
+                
+                if not latest_imb.empty:
+                    imb_chart = alt.Chart(latest_imb).mark_bar().encode(
+                        x=alt.X('imbalance:Q', scale=alt.Scale(domain=[0, 1]), title="Bids <--- Pressure ---> Asks"),
+                        y=alt.Y('symbol:N', sort='-x'),
+                        color=alt.condition(alt.datum.imbalance > 0.5, alt.value("#2ecc71"), alt.value("#e74c3c"))
+                    ).properties(height=250)
+                    st.altair_chart(imb_chart, width='stretch')
+            else:
+                st.info("Waiting for order book data...")
         st.divider()
 
         col_bot1, col_bot2 = st.columns([1, 1])

@@ -13,28 +13,29 @@ graph TD
     subgraph External_Data_Sources
         B[Binance WebSocket]
         K[Kraken WebSocket]
+        News[RSS Crypto Feeds]
     end
 
-    subgraph Backend_Service[ETL Engine - Python 3.10]
-        CCXT[CCXT Pro]
-        PROC[Processing Logic]
+    subgraph Persistence_Layer[Shared Message Broker]
+        R[(Redis Shared DB)]
     end
 
-    subgraph Persistence_Layer[Message Broker]
-        R[(Redis DB)]
+    subgraph App_1_Arbitrage[Arbitrage Engine Stack]
+        PROC[ETL Logic]
+        ST_A[Arbitrage Dashboard]
     end
 
-    subgraph Frontend_Service[Analytics Dashboard]
-        ST[Streamlit App]
-        ALT[Altair Engine]
+    subgraph App_2_Sentiment[Sentiment Alpha Stack]
+        SENT[Sentiment ETL - FinBERT]
+        ST_S[Intelligence Hub]
     end
 
-    B -->|WSS Stream| CCXT
-    K -->|WSS Stream| CCXT
-    CCXT --> PROC
-    PROC -->|JSON Payload| R
-    R <-->|Get/Set State| ST
-    ST -->|Reactive Bind| ALT
+    B & K --> PROC
+    News --> SENT
+    PROC & SENT -->|Write Tickers & News| R
+    R <--> ST_A
+    R <--> ST_S
+    ST_S -->|LLM Context| Llama3[Ollama Engine]
 ```
 
 1. **ETL Engine (Python/CCXT Pro)**: Connects to Binance and Kraken via WebSockets. It performs real-time data ingestion, calculates order book depth/imbalance, and pushes normalized data to Redis.
@@ -60,6 +61,21 @@ sequenceDiagram
         FE->>FE: Calculate Correlation & Trends
         FE->>FE: Re-render Altair Components
     end
+```
+
+## Networking & Multi-App Integration
+
+This engine is designed to operate as a modular component within a larger trading ecosystem. It uses a shared external Docker network to communicate with the [Sentiment Alpha](https://github.com/PandoraQS/News-Sentiment-Alpha) project.
+
+**Shared Network Configuration**
+Both projects connect via a bridge network named crypto-bridge. This allows the Sentiment project to read real-time ticker data directly from this engine's Redis instance to calculate news-driven arbitrage impact.
+
+**Key Docker Compose update:**
+
+```bash
+networks:
+  crypto-bridge:
+    external: true
 ```
 
 ## Tech Stack
@@ -138,18 +154,23 @@ graph LR
 
 ### Installation
 
-1. Clone the repository:
+1. Create the shared network:
+Before launching the containers, you must create the external bridge network:
 
 ```bash
-git clone [https://github.com/YOUR_USERNAME/Crypto-Arbitrage-Stealth.git](https://github.com/YOUR_USERNAME/Crypto-Arbitrage-Stealth.git)
-cd Crypto-Arbitrage-Stealth
+docker network create crypto-bridge
 ```
 
-2. Launch the entire stack:
+2. Clone and Launch:
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/Crypto-Arbitrage-Stealth.git
+cd Crypto-Arbitrage-Stealth
 docker-compose up --build
 ```
 
 3. Access the dashboard:
 Open <http://localhost:8501> in your browser.
+
+4. Interoperability:
+Once this engine is running, you can launch the Sentiment Alpha Dashboard on port `8502`: <http://localhost:8501>. It will automatically detect the Redis instance from this project and begin correlating news with your live spreads.

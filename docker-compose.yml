@@ -7,17 +7,25 @@ services:
       - REDIS_HOST=redis-cache
     depends_on:
       - redis-cache
+    networks:
+      - crypto-bridge
 
   redis-cache:
     image: redis:alpine
     ports:
       - "6379:6379"
+    networks:
+      - crypto-bridge
 
   dashboard:
     build: ./frontend
     ports:
       - "8501:8501"
-    environment:
-      - REDIS_HOST=redis-cache
-    depends_on:
-      - redis-cache
+    networks:
+      - crypto-bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  crypto-bridge:
+    external: true
